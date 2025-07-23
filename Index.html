@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>QR Maker Tools</title>
+  <style>
+    body { font-family: Arial, sans-serif; background: #f9f9f9; text-align: center; margin: 0; }
+    header { padding: 30px 0 15px 0; background: #404040; color: #fff; }
+    .container { margin: 40px auto; background: #fff; max-width: 420px; border-radius: 12px; box-shadow: 0 0 12px #ddd; padding: 32px 24px 40px 24px; }
+    label { display: block; margin: 8px 0 4px 0; font-size: 15px; text-align:left;}
+    select, input[type="text"], input[type="email"], input[type="tel"] {
+      font-size:16px; margin:10px 0; width:100%; padding:10px; border-radius:6px; border:1px solid #bbb;
+    }
+    button { background: #079e4d; color: #fff; border: none; padding: 12px 28px; border-radius: 6px; font-size:17px; margin-top: 12px; cursor:pointer; }
+    button:disabled{background:#ccc;cursor:not-allowed}
+    .picker {display:flex;justify-content:space-between;gap:6px;}
+    .picker label{margin:0;padding:0;}
+    #qrcode { margin: 30px 0 18px 0; min-height: 40px;}
+    .footer { margin-top: 34px; color: #666; font-size: 14px; }
+    #logo-preview { display: block; margin: 8px auto 0 auto; max-width: 80px; max-height: 80px;}
+    .hide {display:none;}
+    @media (max-width:500px) {
+      .container {padding:17px 4vw 24px 4vw;}
+    }
+  </style>
+  <!-- qr-code-styling library from CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/qr-code-styling@1.6.0/lib/qr-code-styling.js"></script>
+</head>
+<body>
+  <header>
+    <h1>QR Maker Tools</h1>
+    <p>Advanced, Free QR Code Generator</p>
+  </header>
+  <div class="container">
+    <form id="qrForm" autocomplete="off">
+      <label for="contentType">Content Type:</label>
+      <select id="contentType">
+        <option value="url">URL or Link</option>
+        <option value="text">Plain Text</option>
+        <option value="email">Email</option>
+        <option value="phone">Phone Number</option>
+        <option value="vcard">Contact (vCard)</option>
+        <option value="wifi">WiFi Network</option>
+      </select>
+
+      <div id="mainInputGroup">
+        <label for="inputField" id="inputLabel">Enter URL:</label>
+        <input type="text" id="inputField" placeholder="Enter link or text">
+      </div>
+
+      <!-- Advanced fields that only show for certain types -->
+      <div id="advancedFields" class="hide">
+        <div id="emailFields" class="hide">
+          <label>Email Address: <input type="email" id="emailAddr" placeholder="email@example.com"></label>
+          <label>Subject: <input type="text" id="emailSubject"></label>
+          <label>Body: <input type="text" id="emailBody"></label>
+        </div>
+        <div id="phoneFields" class="hide">
+          <label>Phone Number: <input type="tel" id="phoneNum" placeholder="+1234567890"></label>
+        </div>
+        <div id="vcardFields" class="hide">
+          <label>Name: <input type="text" id="vcardName"></label>
+          <label>Organization: <input type="text" id="vcardOrg"></label>
+          <label>Email: <input type="email" id="vcardEmail"></label>
+          <label>Phone: <input type="tel" id="vcardTel"></label>
+        </div>
+        <div id="wifiFields" class="hide">
+          <label>WiFi SSID: <input type="text" id="wifiSsid"></label>
+          <label>Password: <input type="text" id="wifiPass"></label>
+          <label>Encryption:
+            <select id="wifiType">
+              <option value="WPA">WPA/WPA2</option>
+              <option value="WEP">WEP</option>
+              <option value="nopass">None</option>
+            </select>
+          </label>
+        </div>
+      </div>
+      <div class="picker">
+        <label>Foreground: <input type="color" id="fgColor" value="#000000"></label>
+        <label>Background: <input type="color" id="bgColor" value="#ffffff"></label>
+      </div>
+      <label>Size:
+        <select id="sizeSel">
+          <option value="150">150 x 150 px</option>
+          <option value="250" selected>250 x 250 px</option>
+          <option value="400">400 x 400 px</option>
+        </select>
+      </label>
+
+      <label>Add Logo (optional):
+        <input type="file" accept="image/*" id="logoInput">
+        <img id="logo-preview" class="hide" alt="Logo preview">
+      </label>
+      
+      <button type="submit" id="generateBtn">Generate QR Code</button>
+    </form>
+    <div id="qrcode"></div>
+    <button id="downloadBtn" style="display:none;">Download QR Code</button>
+  </div>
+  <div class="footer">Made with ❤️ – qrmaker.tools</div>
+<script>
+  // Handle content type switching
+  const inputLabel = document.getElementById('inputLabel');
+  const mainInput = document.getElementById('mainInputGroup');
+  const advFields = document.getElementById('advancedFields');
+  document.getElementById('contentType').addEventListener('change', function (e) {
+    const ct = e.target.value;
+    mainInput.style.display = (ct==='url'||ct==='text')?'block':'none';
+    advFields.className = ((ct==='email'||ct==='phone'||ct==='vcard'||ct==='wifi')?'':'hide');
+    document.getElementById('emailFields').className = ct==='email'?'':'hide';
+    document.getElementById('phoneFields').className = ct==='phone'?'':'hide';
+    document.getElementById('vcardFields').className = ct==='vcard'?'':'hide';
+    document.getElementById('wifiFields').className = ct==='wifi'?'':'hide';
+
+    switch(ct) {
+      case 'url': inputLabel.textContent = 'Enter URL:'; break;
+      case 'text': inputLabel.textContent = 'Enter Text:'; break;
+    }
+  });
+
+  // Logo preview and data handling
+  let logoDataURL = null;
+  document.getElementById('logoInput').addEventListener('change', function(e){
+    const file = e.target.files[0];
+    if(file) {
+      const reader = new FileReader();
+      reader.onload = function(ev) {
+        logoDataURL = ev.target.result;
+        document.getElementById('logo-preview').src = logoDataURL;
+        document.getElementById('logo-preview').className = '';
+      };
+      reader.readAsDataURL(file);
+    } else {
+      logoDataURL = null;
+      document.getElementById('logo-preview').className = 'hide';
+    }
+  });
+
+  // Generate QR code
+  let qrCodeInstance = null;
+  function getContent() {
+    const type = document.getElementById('contentType').value;
+    if(type==='url') return document.getElementById('inputField').value.trim();
+    if(type==='text') return document.getElementById('inputField').value.trim();
+    if(type==='email') {
+      const addr = document.getElementById('emailAddr').value.trim();
+      const subj = document.getElementById('emailSubject').value.trim();
+      const body = document.getElementById('emailBody').value.trim();
+      if(!addr) return '';
+      return `mailto:${addr}${subj||body?'?':''}${subj?'subject='+encodeURIComponent(subj):''}${body?(subj?'&':'')+'body='+encodeURIComponent(body):''}`;
+    }
+    if(type==='phone') {
+      const phone = document.getElementById('phoneNum').value.trim();
+      return phone ? `tel:${phone}` : '';
+    }
+    if(type==='vcard') {
+      const n = document.getElementById('vcardName').value.trim();
+      const o = document.getElementById('vcardOrg').value.trim();
+      const e = document.getElementById('vcardEmail').value.trim();
+      const t = document.getElementById('vcardTel').value.trim();
+      if (!n && !o && !e && !t) return '';
+      return `BEGIN:VCARD
+VERSION:3.0
+FN:${n}
+ORG:${o}
+EMAIL:${e}
+TEL:${t}
+END:VCARD`;
+    }
+    if(type==='wifi') {
+      const ssid = document.getElementById('wifiSsid').value.trim();
+      const pass = document.getElementById('wifiPass').value.trim();
+      const type = document.getElementById('wifiType').value;
+      if(!ssid) return '';
+      return `WIFI:T:${type};S:${ssid};P:${pass};;`;
+    }
+    return '';
+  }
+  document.getElementById('qrForm').onsubmit = function(e){
+    e.preventDefault();
+    const data = getContent();
+    const size = parseInt(document.getElementById('sizeSel').value);
+    const fg = document.getElementById('fgColor').value;
+    const bg = document.getElementById('bgColor').value;
+    const qrDiv = document.getElementById('qrcode');
+    qrDiv.innerHTML = '';
+    document.getElementById('downloadBtn').style.display = 'none';
+    if(!data){
+      qrDiv.innerHTML = "<span style='color:red'>Please fill in the required fields!</span>";
+      return;
+    }
+    qrCodeInstance = new QRCodeStyling({
+      width: size, height: size,
+      data: data,
+      image: logoDataURL || '',
+      dotsOptions: { color: fg },
+      backgroundOptions: { color: bg },
+      imageOptions: { crossOrigin: 'anonymous', margin: 4 }
+    });
+    qrCodeInstance.append(document.getElementById('qrcode'));
+    setTimeout(()=>{document.getElementById('downloadBtn').style.display='inline-block';},350);
+  };
+
+  // Download as PNG
+  document.getElementById('downloadBtn').onclick = function(){
+    if(qrCodeInstance) qrCodeInstance.download({ name: 'qrcode', extension: 'png' });
+  };
+</script>
+</body>
+</html>
